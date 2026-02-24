@@ -11,8 +11,8 @@ TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 OUTPUT_DIR="./log_report_${TIMESTAMP}"
 REPORT_FILE="${OUTPUT_DIR}/system_report.txt"
 RAW_DIR="${OUTPUT_DIR}/raw_logs"
-MAX_LINES=600000          # Max recent lines to grab per log
-DAYS_BACK=365            # How many days back to look for journal logs
+MAX_LINES=500          # Max recent lines to grab per log
+DAYS_BACK=3            # How many days back to look for journal logs
 
 # Colors for terminal output
 RED='\033[0;31m'
@@ -20,6 +20,71 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# --- Progress Bar ---
+TOTAL_STEPS=12
+CURRENT_STEP=0
+BAR_WIDTH=40
+BOLD='\033[1m'
+DIM='\033[2m'
+
+STEP_NAMES=(
+    "System Information"
+    "Syslog"
+    "Authentication Logs"
+    "Kernel Logs"
+    "Journal Errors"
+    "Service Status"
+    "Package History"
+    "Boot Logs"
+    "Cron Logs"
+    "Network Info"
+    "Summary Report"
+    "Compressing Archive"
+)
+
+draw_progress_bar() {
+    local step=$1
+    local total=$2
+    local label=$3
+    local percent=$((step * 100 / total))
+    local filled=$((step * BAR_WIDTH / total))
+    local empty=$((BAR_WIDTH - filled))
+
+    # Build the bar
+    local bar=""
+    if [[ $filled -gt 0 ]]; then
+        bar=$(printf '█%.0s' $(seq 1 $filled))
+    fi
+    if [[ $empty -gt 0 ]]; then
+        bar+=$(printf '░%.0s' $(seq 1 $empty))
+    fi
+
+    # Move cursor up and clear lines (after first draw)
+    if [[ $step -gt 0 ]]; then
+        echo -ne "\033[3A"  # Move up 3 lines
+    fi
+
+    # Draw progress
+    echo -e "  ${CYAN}${bar}${NC}  ${BOLD}${percent}%${NC}  (${step}/${total})    "
+    echo -e "  ${GREEN}►${NC} ${label}                                        "
+    echo -e "  ${DIM}Elapsed: $(format_elapsed)${NC}                          "
+}
+
+advance_step() {
+    local label="${STEP_NAMES[$CURRENT_STEP]}"
+    draw_progress_bar "$((CURRENT_STEP + 1))" "$TOTAL_STEPS" "$label"
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+}
+
+format_elapsed() {
+    local now=$(date +%s)
+    local elapsed=$((now - START_TIME))
+    local mins=$((elapsed / 60))
+    local secs=$((elapsed % 60))
+    printf "%dm %02ds" "$mins" "$secs"
+}
+
 
 # --- Helper Functions ---
 
@@ -479,27 +544,41 @@ main() {
     echo ""
     print_header "Starting log collection..."
     echo ""
-
-    collect_system_info
-    collect_syslog
-    collect_auth_log
-    collect_kernel_log
-    collect_journal_errors
-    collect_service_status
-    collect_package_log
-    collect_boot_log
-    collect_cron_log
-    collect_network_log
-    generate_summary
-
+    echo ""  # Extra lines for progress bar drawing space
     echo ""
+
+    START_TIME=$(date +%s)
+
+    # Draw initial empty bar
+    draw_progress_bar 0 "$TOTAL_STEPS" "Starting..."
+
+    collect_system_info    >/dev/null 2>&1; advance_step
+    collect_syslog         >/dev/null 2>&1; advance_step
+    collect_auth_log       >/dev/null 2>&1; advance_step
+    collect_kernel_log     >/dev/null 2>&1; advance_step
+    collect_journal_errors >/dev/null 2>&1; advance_step
+    collect_service_status >/dev/null 2>&1; advance_step
+    collect_package_log    >/dev/null 2>&1; advance_step
+    collect_boot_log       >/dev/null 2>&1; advance_step
+    collect_cron_log       >/dev/null 2>&1; advance_step
+    collect_network_log    >/dev/null 2>&1; advance_step
+    generate_summary       >/dev/null 2>&1; advance_step
+
     separator >> "$REPORT_FILE"
     echo "END OF REPORT" >> "$REPORT_FILE"
 
     # Compress output
-    print_header "Compressing report..."
     tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")" 2>/dev/null
-    print_success "Compressed archive: ${OUTPUT_DIR}.tar.gz"
+    advance_step
+
+    # Final elapsed time
+    local total_elapsed=$(format_elapsed)
+
+    # Clear progress bar area and print completion
+    echo -ne "\033[3A"
+    echo -e "  $(printf '█%.0s' $(seq 1 $BAR_WIDTH))  ${BOLD}100%${NC}  (${TOTAL_STEPS}/${TOTAL_STEPS})    "
+    echo -e "  ${GREEN}✓ All steps completed${NC}                                "
+    echo -e "  ${DIM}Total time: ${total_elapsed}${NC}                          "
 
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
