@@ -11,8 +11,8 @@ TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 OUTPUT_DIR="./log_report_${TIMESTAMP}"
 REPORT_FILE="${OUTPUT_DIR}/system_report.txt"
 RAW_DIR="${OUTPUT_DIR}/raw_logs"
-MAX_LINES=500          # Max recent lines to grab per log
-DAYS_BACK=3            # How many days back to look for journal logs
+MAX_LINES=600000          # Max recent lines to grab per log
+DAYS_BACK=365            # How many days back to look for journal logs
 
 # Colors for terminal output
 RED='\033[0;31m'
