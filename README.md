@@ -1,4 +1,4 @@
-# Ubuntu Log Collector & Parser
+# Log Collector & Parser
 
 A lightweight Bash script that collects, parses, and summarizes system and security logs from Ubuntu and Debian systems into a single human-readable report. Can also emit a machine-readable JSON summary for ingestion into a SIEM.
 
